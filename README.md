@@ -42,8 +42,7 @@ Alpha-Local 将页面渲染、技能 API、SQLite 存储与定时任务统一收
 
 - **单体架构，开箱即跑**：后端页面、API、数据库、定时任务都在同一个服务中。
 - **本地数据库存储**：默认使用 SQLite，本地启动时会自动初始化数据库文件。
-- **默认内置 Mock 持仓数据**：即使没有接入真实行情 / 券商 SDK，也可以直接看到页面效果。
-- **支持后续接入 EmQuant SDK**：`core/emquant_client.py` 已预留真实持仓获取逻辑。
+- **依赖 EmQuant SDK 持仓数据**：`core/emquant_client.py` 直接通过 EmQuant SDK 拉取真实持仓。
 - **带有定时任务**：
   - 每 10 分钟自动同步一次持仓
   - 每个工作日 14:30 生成一次尾盘建议
@@ -115,7 +114,7 @@ Alpha-Local 将页面渲染、技能 API、SQLite 存储与定时任务统一收
 3. 前端页面调用 `/api/skill/*` 接口获取或更新持仓数据
 4. 数据通过 SQLAlchemy 写入 / 读取 SQLite
 5. APScheduler 在后台定时同步持仓与生成尾盘建议
-6. EmQuant 接入层负责后续真实数据源对接
+6. EmQuant 接入层负责真实持仓数据对接
 7. AIEngine 负责投资辅助建议生成
 
 如果后续要扩展为更正式的系统，可以逐步拆分为：
@@ -226,7 +225,7 @@ pip install -r requirements.txt
 
 - 数据库引擎初始化
 - 表结构创建
-- 持仓种子数据写入（首次启动时）
+- 持仓种子数据写入（首次启动时，来自 EmQuant SDK）
 
 默认数据库文件位置：
 
@@ -236,17 +235,15 @@ alpha_local.db
 
 该文件会在项目根目录下自动生成。
 
-### 5）可选：接入真实 EmQuant 数据
+### 5）安装并配置 EmQuant SDK（必需）
 
-默认情况下，项目会走 `core/emquant_client.py` 中的 **mock 持仓数据**，所以即使没有安装 EmQuant SDK，也能正常启动。
+当前版本仅支持通过 EmQuant SDK 获取持仓数据，应用启动时会调用 SDK 的 `get_positions()` 作为初始化数据来源。
 
-如果你后续希望接入真实数据：
+请先完成：
 
 1. 安装并配置 EmQuant 官方 Python SDK
-2. 根据你的 SDK 实际接口修改 `core/emquant_client.py`
-3. 在 `_fetch_positions_from_sdk()` 中返回统一结构的持仓列表
-
-建议保持返回结构与当前 mock 数据一致，例如：
+2. 确保 `EmQuantAPI.c` 上存在可调用的 `get_positions()` 方法，并可被当前 Python 环境调用
+3. 确保返回结构符合下述字段约定，例如：
 
 ```json
 [
@@ -263,7 +260,7 @@ alpha_local.db
 ]
 ```
 
-如果 SDK 不可用，系统会自动回退到 mock 数据。
+如果 SDK 未安装、导入失败或缺少 `get_positions()`，应用启动时会抛出明确异常并终止运行。
 
 ---
 
@@ -355,10 +352,10 @@ docker compose down
 4. 初始化 EmQuant 客户端
 5. 初始化 AIEngine
 6. 检查数据库中是否已有持仓数据
-7. 如果没有，则写入默认 mock 持仓
+7. 如果没有，则通过 EmQuant SDK 拉取并写入持仓
 8. 启动 APScheduler 定时任务
 
-也就是说，**首次运行不需要额外初始化命令，直接启动即可**。
+也就是说，**首次运行前需要先完成 EmQuant SDK 配置，再启动服务**。
 
 ---
 
@@ -368,7 +365,7 @@ docker compose down
 
 1. 启动服务
 2. 打开 `http://127.0.0.1:8000/dashboard`
-3. 查看默认 mock 持仓是否展示正常
+3. 查看 EmQuant 持仓是否展示正常
 4. 打开 `http://127.0.0.1:8000/docs`
 5. 调用 `GET /api/skill/get_positions` 查看接口返回
 6. 调用 `POST /api/skill/update_strategy` 修改某只股票的策略信息
@@ -545,7 +542,7 @@ Windows PowerShell：
 Remove-Item alpha_local.db
 ```
 
-删除后重新执行启动命令，系统会自动重新建表并写入初始 mock 数据。
+删除后重新执行启动命令，系统会自动重新建表，并在首次启动时通过 EmQuant SDK 写入持仓。
 
 ### 查看接口文档
 
@@ -592,7 +589,7 @@ pip install black ruff pytest pre-commit
 
 ### 1）没有安装 EmQuant SDK，可以运行吗？
 
-可以。项目默认会自动回退到 mock 数据。
+不可以。当前版本依赖 EmQuant SDK 提供持仓数据；未安装或不可用时应用会启动失败并给出错误信息。
 
 ### 2）为什么启动后目录里多了 `alpha_local.db`？
 
@@ -625,7 +622,7 @@ pip install black ruff pytest pre-commit
 2. **部署说明**：Docker、本地服务器、云主机部署
 3. **设计说明**：为什么采用 FastAPI + Jinja2 + SQLite 的组合
 4. **演进规划**：从本地原型到可部署系统的升级路径
-5. **真实数据接入说明**：如何从 mock 数据切换到真实券商 / 行情数据
+5. **真实数据接入说明**：如何对接 EmQuant SDK 与后续券商 / 行情数据源
 
 这样 README 会更适合：
 
@@ -644,11 +641,11 @@ pip install black ruff pytest pre-commit
 - [x] 技能 API
 - [x] SQLite 本地存储
 - [x] 定时同步任务
-- [x] Mock 数据启动能力
+- [x] EmQuant SDK 持仓接入
 
 ### 后续计划
 
-- [ ] 接入真实 EmQuant / 券商数据
+- [ ] 增强 EmQuant / 券商多源数据适配
 - [ ] 增加用户登录与鉴权
 - [ ] 增加策略历史记录
 - [ ] 增加 AI 建议落库与展示
@@ -670,6 +667,8 @@ source .venv/bin/activate  # Windows 请改用对应激活命令
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
+
+> 启动前请确保 EmQuant SDK 已完成安装与配置，否则应用会在初始化持仓阶段报错退出。
 
 然后打开：
 

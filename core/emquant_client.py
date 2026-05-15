@@ -1,67 +1,54 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
+
+
+class EmQuantClientError(RuntimeError):
+    pass
 
 
 class EmQuantClient:
     def __init__(self) -> None:
         self._sdk = None
+        self._sdk_import_error: Exception | None = None
         self.connected = False
         try:
             from EmQuantAPI import c  # type: ignore
 
             self._sdk = c
-        except ImportError:
+        except ImportError as exc:
             self._sdk = None
+            self._sdk_import_error = exc
 
     @property
     def sdk_available(self) -> bool:
         return self._sdk is not None
 
     def connect(self) -> bool:
+        self._ensure_sdk_imported()
+        self._get_positions_method()
         self.connected = True
         return self.connected
 
     def fetch_positions(self) -> list[dict[str, Any]]:
-        if self.sdk_available and self._sdk is not None:
-            try:
-                sdk_positions = self._fetch_positions_from_sdk()
-                if sdk_positions:
-                    return sdk_positions
-            except Exception:
-                pass
-        return self._mock_positions()
+        self._ensure_sdk_imported()
+        query_method = self._get_positions_method()
+        response = query_method()
+        if not isinstance(response, list):
+            raise EmQuantClientError(
+                f"EmQuant SDK get_positions() 返回值必须是 list，实际返回类型: {type(response).__name__}。"
+            )
+        return response
 
-    def _fetch_positions_from_sdk(self) -> list[dict[str, Any]]:
+    def _ensure_sdk_imported(self) -> None:
         if self._sdk is None:
-            return []
-        query_method = getattr(self._sdk, "get_positions", None)
-        if callable(query_method):
-            response = query_method()
-            if isinstance(response, list):
-                return response
-        return []
+            message = "EmQuant SDK 不可用：未安装或导入失败。"
+            if self._sdk_import_error is not None:
+                message = f"{message} 原因: {self._sdk_import_error}"
+            raise EmQuantClientError(message)
 
-    def _mock_positions(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "symbol": "600519.SH",
-                "name": "贵州茅台",
-                "quantity": 100,
-                "average_cost": 1680.0,
-                "last_price": 1715.5,
-                "portfolio_tag": "长线",
-                "strategy_description": "核心白马，逢回调观察加仓",
-                "expected_action": "若放量突破则继续持有",
-            },
-            {
-                "symbol": "300750.SZ",
-                "name": "宁德时代",
-                "quantity": 200,
-                "average_cost": 225.0,
-                "last_price": 219.8,
-                "portfolio_tag": "波段",
-                "strategy_description": "跟踪新能源景气度",
-                "expected_action": "尾盘若弱势延续则减仓",
-            },
-        ]
+    def _get_positions_method(self) -> Callable[[], Any]:
+        query_method = getattr(self._sdk, "get_positions", None)
+        if not callable(query_method):
+            raise EmQuantClientError("EmQuant SDK 不可用：缺少 get_positions() 方法。")
+        return query_method
