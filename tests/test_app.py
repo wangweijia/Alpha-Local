@@ -8,6 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from main import create_app
+from core.emquant_client import EmQuantClient
 from models.entities import Position
 
 
@@ -15,8 +16,8 @@ class AlphaLocalAppTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         database_path = Path(self.temp_dir.name) / "test.db"
-        self.connect_patcher = patch("main.EmQuantClient.connect", return_value=True)
-        self.fetch_patcher = patch("main.EmQuantClient.fetch_positions", return_value=[])
+        self.connect_patcher = patch.object(EmQuantClient, "connect", return_value=True)
+        self.fetch_patcher = patch.object(EmQuantClient, "fetch_positions", return_value=[])
         self.connect_patcher.start()
         self.fetch_patcher.start()
         self.app = create_app(database_url=f"sqlite:///{database_path}", start_scheduler=False)

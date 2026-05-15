@@ -242,7 +242,7 @@ alpha_local.db
 请先完成：
 
 1. 安装并配置 EmQuant 官方 Python SDK
-2. 确保 `EmQuantAPI.c.get_positions()` 可被当前 Python 环境调用
+2. 确保 `EmQuantAPI.c` 上存在可调用的 `get_positions()` 方法，并可被当前 Python 环境调用
 3. 确保返回结构符合下述字段约定，例如：
 
 ```json
@@ -260,7 +260,7 @@ alpha_local.db
 ]
 ```
 
-如果 SDK 未安装、导入失败或缺少 `get_positions()`，应用启动时会抛出明确异常并终止启动。
+如果 SDK 未安装、导入失败或缺少 `get_positions()`，应用启动时会抛出明确异常并终止运行。
 
 ---
 
