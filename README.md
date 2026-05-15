@@ -1,7 +1,21 @@
 # Alpha-Local
 
-> 一个基于 **FastAPI + Jinja2 + Vue3（本地静态资源集成）** 的本地投资辅助系统示例。
-> 适合作为 **本地原型、课程示例、个人作品集项目**，也适合作为后续接入真实行情、券商 SDK 与 AI 分析能力的基础工程。
+<p align="center">
+  <strong>一个基于 FastAPI + Jinja2 + Vue3（本地静态资源集成）的本地投资辅助系统示例</strong>
+</p>
+
+<p align="center">
+  适合作为本地原型、课程示例、个人作品集项目，也适合作为后续接入真实行情、券商 SDK 与 AI 分析能力的基础工程。
+</p>
+
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-blue" />
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.115-green" />
+  <img alt="SQLite" src="https://img.shields.io/badge/Database-SQLite-lightgrey" />
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-black" />
+</p>
+
+---
 
 ## 项目简介
 
@@ -38,6 +52,22 @@ Alpha-Local 将页面渲染、技能 API、SQLite 存储与定时任务统一收
 
 ---
 
+## 项目截图（占位）
+
+> 你可以把实际页面截图放到 `docs/images/` 目录，然后替换下面的占位链接。
+
+- Dashboard 首页截图：`docs/images/dashboard.png`
+- 持仓表格截图：`docs/images/positions.png`
+- 策略编辑截图：`docs/images/strategy-form.png`
+
+如果后续补充截图，可以这样插入：
+
+```markdown
+![Dashboard](docs/images/dashboard.png)
+```
+
+---
+
 ## 技术栈
 
 ### 后端
@@ -59,6 +89,46 @@ Alpha-Local 将页面渲染、技能 API、SQLite 存储与定时任务统一收
 
 ---
 
+## 为什么这样设计
+
+这个项目选择 **FastAPI + Jinja2 + SQLite** 的组合，核心考虑是：
+
+1. **降低启动成本**：不需要拆分多个服务，也不需要额外准备复杂基础设施。
+2. **降低理解成本**：页面、接口、数据库和调度逻辑都能在同一个仓库中快速读懂。
+3. **适合本地原型验证**：对于个人项目、课程项目或 Demo 场景，非常高效。
+4. **方便后续演进**：当原型验证完成后，可以逐步替换成真实数据源、外部数据库和正式部署方案。
+
+这种结构尤其适合：
+
+- 想快速做一个可演示系统
+- 想展示完整工程闭环能力
+- 想把项目逐步演进为真实可部署产品
+
+---
+
+## 项目架构说明
+
+当前系统采用单体结构，核心链路如下：
+
+1. 用户访问 `/dashboard`
+2. FastAPI 返回 Jinja2 模板页面
+3. 前端页面调用 `/api/skill/*` 接口获取或更新持仓数据
+4. 数据通过 SQLAlchemy 写入 / 读取 SQLite
+5. APScheduler 在后台定时同步持仓与生成尾盘建议
+6. EmQuant 接入层负责后续真实数据源对接
+7. AIEngine 负责投资辅助建议生成
+
+如果后续要扩展为更正式的系统，可以逐步拆分为：
+
+- Web 层
+- API 层
+- Data Access 层
+- Scheduler 层
+- 外部行情 / 券商接入层
+- AI 决策辅助层
+
+---
+
 ## 目录结构
 
 ```text
@@ -71,8 +141,8 @@ Alpha-Local/
 ├── tests/               # 测试代码
 ├── main.py              # FastAPI 应用入口
 ├── requirements.txt     # Python 依赖
-├── Dockerfile           # Docker 镜像构建文件（如已添加）
-├── docker-compose.yml   # Docker 编排文件（如已添加）
+├── Dockerfile           # Docker 镜像构建文件
+├── docker-compose.yml   # Docker 编排文件
 └── README.md
 ```
 
@@ -233,28 +303,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 9000
 
 ## Docker 部署说明
 
-> 如果你还没有添加 `Dockerfile` 或 `docker-compose.yml`，可以先参考以下规范补充。
-
 ### 方式一：使用 Dockerfile 构建并运行
-
-先在项目根目录准备一个基础 `Dockerfile`（如果仓库还没有的话）：
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-然后执行：
 
 ```bash
 docker build -t alpha-local .
@@ -268,23 +317,6 @@ http://127.0.0.1:8000/dashboard
 ```
 
 ### 方式二：使用 docker-compose 启动
-
-如果你希望用 `docker-compose` 管理服务，可以新建 `docker-compose.yml`：
-
-```yaml
-version: '3.9'
-services:
-  alpha-local:
-    build: .
-    container_name: alpha-local
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./:/app
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-启动命令：
 
 ```bash
 docker compose up --build
