@@ -237,7 +237,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 9000
 
 ### 方式一：使用 Dockerfile 构建并运行
 
-先在项目根目录准备一个基础 `Dockerfile`（���果仓库还没有的话）：
+先在项目根目录准备一个基础 `Dockerfile`（如果仓库还没有的话）：
 
 ```dockerfile
 FROM python:3.11-slim
