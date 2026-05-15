@@ -25,7 +25,7 @@ class AlphaLocalAppTests(unittest.TestCase):
         response = self.client.get("/dashboard")
         self.assertEqual(response.status_code, 200)
         self.assertIn("Alpha-Local 持仓看板", response.text)
-        self.assertIn("vue.esm-browser.prod.js", response.text)
+        self.assertIn("/static/vendor/vue.global.prod.js", response.text)
         self.assertIn("/api/skill/get_positions", response.text)
 
     def test_get_positions_returns_seeded_data(self) -> None:

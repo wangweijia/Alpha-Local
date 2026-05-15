@@ -7,6 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from api.skills import router as skills_router
@@ -98,6 +99,7 @@ def create_app(database_url: str | None = None, start_scheduler: bool = True) ->
         description="单体集成版个人投资与 AI 辅助决策系统",
         lifespan=lifespan,
     )
+    app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
     app.include_router(skills_router)
 
     @app.get("/", include_in_schema=False)
