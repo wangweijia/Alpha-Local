@@ -1,17 +1,19 @@
 # Alpha-Local
 
-一个基于 **FastAPI + Jinja2 + Vue3（本地静态资源集成）** 的单体化本地投资辅助系统示例。项目将页面渲染、技能 API、SQLite 存储与定时任务统一收敛在同一个 Python 服务中，适合作为本地原型、课程示例、个人作品集项目，或轻量级内部工具的起点。
+> 一个基于 **FastAPI + Jinja2 + Vue3（本地静态资源集成）** 的本地投资辅助系统示例。
+> 适合作为 **本地原型、课程示例、个人作品集项目**，也适合作为后续接入真实行情、券商 SDK 与 AI 分析能力的基础工程。
 
-## 项目预览
+## 项目简介
 
-Alpha-Local 旨在提供一个“**本地可运行、前后端一体化、具备投资辅助能力**”的最小完整系统。它不是一个拆分复杂的多服务工程，而是一个强调：
+Alpha-Local 将页面渲染、技能 API、SQLite 存储与定时任务统一收敛在同一个 Python 服务中，目标是提供一个“**本地可运行、前后端一体化、具备投资辅助能力**”的最小完整系统。
+
+它不是一个拆分复杂的多服务工程，而是一个强调以下特点的单体项目模板：
 
 - 快速启动
 - 本地可演示
 - 便于二次开发
 - 便于接入真实数据源
-
-的单体项目模板。
+- 适合作品集展示
 
 你可以把它理解成一个适合继续扩展的基础版本，后续可以逐步演进为：
 
@@ -22,11 +24,11 @@ Alpha-Local 旨在提供一个“**本地可运行、前后端一体化、具备
 
 ---
 
-## 项目特点
+## 项目亮点
 
 - **单体架构，开箱即跑**：后端页面、API、数据库、定时任务都在同一个服务中。
 - **本地数据库存储**：默认使用 SQLite，本地启动时会自动初始化数据库文件。
-- **默认内置 Mock 持仓数据**：即使没有接入真实行�� / 券商 SDK，也可以直接看到页面效果。
+- **默认内置 Mock 持仓数据**：即使没有接入真实行情 / 券商 SDK，也可以直接看到页面效果。
 - **支持后续接入 EmQuant SDK**：`core/emquant_client.py` 已预留真实持仓获取逻辑。
 - **带有定时任务**：
   - 每 10 分钟自动同步一次持仓
@@ -69,6 +71,8 @@ Alpha-Local/
 ├── tests/               # 测试代码
 ├── main.py              # FastAPI 应用入口
 ├── requirements.txt     # Python 依赖
+├── Dockerfile           # Docker 镜像构建文件（如已添加）
+├── docker-compose.yml   # Docker 编排文件（如已添加）
 └── README.md
 ```
 
@@ -90,7 +94,7 @@ Alpha-Local/
 - pip 最新版本
 - 操作系统：macOS / Linux / Windows 均可
 
-可先确认 Python 版本：
+可以先确认 Python 版本：
 
 ```bash
 python --version
@@ -148,7 +152,7 @@ pip install -r requirements.txt
 
 ### 4）初始化数据库
 
-本项目**���需要手动执行建表脚本**。应用启动时会自动完成：
+本项目**不需要手动执行建表脚本**。应用启动时会自动完成：
 
 - 数据库引擎初始化
 - 表结构创建
@@ -195,7 +199,7 @@ alpha_local.db
 
 ## 启动方式
 
-### 开发模式启动
+### 本地开发模式启动
 
 ```bash
 uvicorn main:app --reload
@@ -225,15 +229,87 @@ uvicorn main:app --reload --host 0.0.0.0 --port 9000
 
 - `http://127.0.0.1:9000/dashboard`
 
-### 生产环境建议
+---
 
-当前仓库更偏向本地开发与演示用途。如果后续要部署到服务器，建议进一步补充：
+## Docker 部署说明
 
-- `.env` 配置管理
-- Gunicorn / Supervisor / systemd 启动方式
-- Nginx 反向代理
-- Dockerfile 与 docker-compose
-- 日志输出与监控
+> 如果你还没有添加 `Dockerfile` 或 `docker-compose.yml`，可以先参考以下规范补充。
+
+### 方式一：使用 Dockerfile 构建并运行
+
+先在项目根目录准备一个基础 `Dockerfile`（���果仓库还没有的话）：
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+然后执行：
+
+```bash
+docker build -t alpha-local .
+docker run --rm -p 8000:8000 alpha-local
+```
+
+启动后访问：
+
+```text
+http://127.0.0.1:8000/dashboard
+```
+
+### 方式二：使用 docker-compose 启动
+
+如果你希望用 `docker-compose` 管理服务，可以新建 `docker-compose.yml`：
+
+```yaml
+version: '3.9'
+services:
+  alpha-local:
+    build: .
+    container_name: alpha-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+启动命令：
+
+```bash
+docker compose up --build
+```
+
+后台启动：
+
+```bash
+docker compose up -d --build
+```
+
+停止服务：
+
+```bash
+docker compose down
+```
+
+### Docker 使用建议
+
+如果后续要长期部署，建议进一步优化：
+
+- 将数据库路径挂载到宿主机卷
+- 使用 `.env` 管理环境变量
+- 将 `--reload` 仅用于开发环境
+- 为日志与数据目录单独挂载 volume
 
 ---
 
@@ -254,7 +330,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 9000
 
 ---
 
-## 使用流程
+## 推荐体验流程
 
 如果你是第一次运行项目，推荐按下面顺序体验：
 
@@ -275,7 +351,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 9000
 
 ---
 
-## 主要功能
+## 核心功能
 
 ### 1）持仓看板
 
@@ -345,6 +421,63 @@ POST /api/skill/update_strategy
 - `expected_action`：预期操作，可选
 
 如果目标持仓不存在，会返回 `404 Position not found`。
+
+---
+
+## curl / httpie 接口调用示例
+
+### 获取当前持仓
+
+#### curl
+
+```bash
+curl -X GET "http://127.0.0.1:8000/api/skill/get_positions"
+```
+
+#### httpie
+
+```bash
+http GET http://127.0.0.1:8000/api/skill/get_positions
+```
+
+### 更新策略信息
+
+#### curl
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/skill/update_strategy" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "symbol": "600519.SH",
+    "portfolio_tag": "核心组合",
+    "strategy_description": "白马龙头，继续观察趋势强度",
+    "expected_action": "若放量突破则继续持有"
+  }'
+```
+
+#### httpie
+
+```bash
+http POST http://127.0.0.1:8000/api/skill/update_strategy \
+  symbol=600519.SH \
+  portfolio_tag="核心组合" \
+  strategy_description="白马龙头，继续观察趋势强度" \
+  expected_action="若放量突破则继续持有"
+```
+
+### 健康检查
+
+#### curl
+
+```bash
+curl -X GET "http://127.0.0.1:8000/healthz"
+```
+
+#### httpie
+
+```bash
+http GET http://127.0.0.1:8000/healthz
+```
 
 ---
 
@@ -452,22 +585,28 @@ pip install black ruff pytest pre-commit
 
 ---
 
-## 适合继续扩展的方向
+## 作品集展示建议
 
-- 接入真实券商 / 行情数据源
-- 增加用户体系与登录鉴权
-- 支持多账户、多策略组合
-- 增加更完整的 AI 投资建议链路
-- 增加 pytest 测试与 CI 流程
-- 增加 Docker 部署配置
-- 增加环境变量配置与多环境支持
-- 增加登录鉴权、权限控制与审计日志
+如果你想把它作为作品集项目，建议继续补充以下内容：
+
+1. **项目截图**：首页、持仓表格、策略编辑页面
+2. **部署说明**：Docker、本地服务器、云主机部署
+3. **设计说明**：为什么采用 FastAPI + Jinja2 + SQLite 的组合
+4. **演进规划**：从本地原型到可部署系统的升级路径
+5. **真实数据接入说明**：如何从 mock 数据切换到真实券商 / 行情数据
+
+这样 README 会更适合：
+
+- 求职作品集展示
+- GitHub 公开仓库展示
+- 面试时介绍项目
+- 向他人说明你的工程设计思路
 
 ---
 
 ## Roadmap
 
-### v0.x
+### 当前已完成
 
 - [x] 本地持仓看板
 - [x] 技能 API
@@ -484,25 +623,6 @@ pip install black ruff pytest pre-commit
 - [ ] 提供 Docker 部署方式
 - [ ] 增加测试覆盖率
 - [ ] 增加 CI / CD 流程
-
----
-
-## 如果你想把它作为作品集项目
-
-建议你下一步继续补充以下内容：
-
-1. **项目截图**：首页、持仓表格、策略编辑页面
-2. **接口调用示例**：curl / httpie / Postman 示例
-3. **部署说明**：Docker、本地服务器、云主机部署
-4. **设计说明**：为什么采用 FastAPI + Jinja2 + SQLite 的组合
-5. **演进规划**：从本地原型到可部署系统的升级路径
-
-这样 README 会更适合：
-
-- 求职作品集展示
-- GitHub 公开仓库展示
-- 面试时介绍项目
-- 向他人说明你的工程设计思路
 
 ---
 
