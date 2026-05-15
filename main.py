@@ -18,6 +18,7 @@ from models.entities import Position
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATABASE_URL = f"sqlite:///{BASE_DIR / 'alpha_local.db'}"
+SYNC_INTERVAL_MINUTES = 10
 
 
 def seed_positions(app: FastAPI) -> None:
@@ -57,7 +58,14 @@ def run_pre_close_oracle(app: FastAPI) -> str:
 
 def build_scheduler(app: FastAPI) -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
-    scheduler.add_job(sync_positions, "interval", minutes=10, args=[app], id="position-sync", replace_existing=True)
+    scheduler.add_job(
+        sync_positions,
+        "interval",
+        minutes=SYNC_INTERVAL_MINUTES,
+        args=[app],
+        id="position-sync",
+        replace_existing=True,
+    )
     scheduler.add_job(
         run_pre_close_oracle,
         CronTrigger(day_of_week="mon-fri", hour=14, minute=30, timezone="Asia/Shanghai"),

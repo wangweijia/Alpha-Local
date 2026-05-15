@@ -54,6 +54,17 @@ class AlphaLocalAppTests(unittest.TestCase):
         self.assertEqual(position["strategy_description"], "关注量能确认")
         self.assertEqual(position["expected_action"], "若 14:30 后放量则持有")
 
+    def test_update_strategy_blank_tag_resets_to_default_group(self) -> None:
+        update_response = self.client.post(
+            "/api/skill/update_strategy",
+            json={
+                "symbol": "600519.SH",
+                "portfolio_tag": "   ",
+            },
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["position"]["portfolio_tag"], "默认组合")
+
 
 if __name__ == "__main__":
     unittest.main()

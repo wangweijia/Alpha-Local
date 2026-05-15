@@ -11,7 +11,7 @@ from models.database import Base
 class Position(Base):
     __tablename__ = "positions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(16), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(80))
     quantity: Mapped[int] = mapped_column(Integer, default=0)

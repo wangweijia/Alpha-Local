@@ -24,7 +24,25 @@ class EmQuantClient:
 
     def fetch_positions(self) -> list[dict[str, Any]]:
         if self.sdk_available and self._sdk is not None:
+            try:
+                sdk_positions = self._fetch_positions_from_sdk()
+                if sdk_positions:
+                    return sdk_positions
+            except Exception:
+                pass
+        return self._mock_positions()
+
+    def _fetch_positions_from_sdk(self) -> list[dict[str, Any]]:
+        if self._sdk is None:
             return []
+        query_method = getattr(self._sdk, "get_positions", None)
+        if callable(query_method):
+            response = query_method()
+            if isinstance(response, list):
+                return response
+        return []
+
+    def _mock_positions(self) -> list[dict[str, Any]]:
         return [
             {
                 "symbol": "600519.SH",

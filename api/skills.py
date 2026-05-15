@@ -36,7 +36,8 @@ def update_strategy(payload: StrategyUpdateRequest, session: Session = Depends(g
         raise HTTPException(status_code=404, detail="Position not found")
 
     if payload.portfolio_tag is not None:
-        position.portfolio_tag = payload.portfolio_tag.strip() or position.portfolio_tag
+        cleaned_portfolio_tag = payload.portfolio_tag.strip()
+        position.portfolio_tag = cleaned_portfolio_tag or "默认组合"
     if payload.strategy_description is not None:
         position.strategy_description = payload.strategy_description.strip()
     if payload.expected_action is not None:
