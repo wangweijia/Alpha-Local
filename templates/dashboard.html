@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div id="app" class="mx-auto max-w-7xl p-6">
+    <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+            <p class="text-sm font-medium text-blue-600">FastAPI + Jinja2 + Vue3 Monolith</p>
+            <h1 class="text-3xl font-bold">Alpha-Local 持仓看板</h1>
+            <p class="mt-2 text-sm text-slate-600">同域技能接口：{{ api_base }}/get_positions · {{ api_base }}/update_strategy</p>
+        </div>
+        <div class="rounded-2xl bg-white p-4 shadow-sm">
+            <div class="text-sm text-slate-500">组合总市值</div>
+            <div class="text-2xl font-semibold" v-text="currency(totals.market_value)"></div>
+            <div class="text-sm" :class="totals.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`浮盈亏 ${currency(totals.unrealized_pnl)}`"></div>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <section class="rounded-2xl bg-white p-5 shadow-sm">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">自定义组合持仓</h2>
+                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" @click="loadPositions">刷新数据</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead>
+                        <tr class="text-left text-slate-500">
+                            <th class="py-3">股票</th>
+                            <th class="py-3">数量</th>
+                            <th class="py-3">分组</th>
+                            <th class="py-3">收益率</th>
+                            <th class="py-3">策略描述</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="position in positions" :key="position.symbol">
+                            <td class="py-3">
+                                <div class="font-medium" v-text="position.name"></div>
+                                <div class="text-xs text-slate-500" v-text="position.symbol"></div>
+                            </td>
+                            <td class="py-3" v-text="position.quantity"></td>
+                            <td class="py-3">
+                                <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700" v-text="position.portfolio_tag"></span>
+                            </td>
+                            <td class="py-3" :class="position.return_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`${position.return_pct}%`"></td>
+                            <td class="py-3 text-slate-600" v-text="position.strategy_description || '待补充策略描述'"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="space-y-6">
+            <section class="rounded-2xl bg-white p-5 shadow-sm">
+                <h2 class="mb-4 text-xl font-semibold">更新操作预期</h2>
+                <form class="space-y-3" @submit.prevent="submitStrategy">
+                    <label class="block text-sm font-medium text-slate-600">
+                        股票代码
+                        <select v-model="form.symbol" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
+                            <option v-for="position in positions" :key="position.symbol" :value="position.symbol" v-text="`${position.symbol} · ${position.name}`"></option>
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-slate-600">
+                        虚拟组合标签
+                        <input v-model="form.portfolio_tag" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：长线 / 波段" />
+                    </label>
+                    <label class="block text-sm font-medium text-slate-600">
+                        持仓逻辑
+                        <textarea v-model="form.strategy_description" class="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="记录你的仓位逻辑"></textarea>
+                    </label>
+                    <label class="block text-sm font-medium text-slate-600">
+                        期望动作
+                        <textarea v-model="form.expected_action" class="mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：14:30 若跌破均线则减仓"></textarea>
+                    </label>
+                    <button class="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white" type="submit">保存策略</button>
+                    <p class="text-sm text-slate-500" v-text="statusMessage"></p>
+                </form>
+            </section>
+
+            <section class="rounded-2xl bg-white p-5 shadow-sm">
+                <h2 class="mb-4 text-xl font-semibold">组合收益概览</h2>
+                <div id="chart" class="h-72 w-full"></div>
+            </section>
+        </aside>
+    </div>
+</div>
+
+<script type="module">
+    import { createApp, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js';
+
+    const apiBase = {{ api_base | tojson }};
+
+    createApp({
+        data() {
+            return {
+                positions: [],
+                totals: { market_value: 0, unrealized_pnl: 0 },
+                form: {
+                    symbol: '',
+                    portfolio_tag: '',
+                    strategy_description: '',
+                    expected_action: '',
+                },
+                statusMessage: '支持通过同域 FastAPI Skill API 与其他 Agent 工具联动。',
+                chart: null,
+            };
+        },
+        methods: {
+            currency(value) {
+                return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value || 0);
+            },
+            async loadPositions() {
+                const response = await fetch(`${apiBase}/get_positions`);
+                const payload = await response.json();
+                this.positions = payload.positions;
+                this.totals = payload.totals;
+                if (!this.form.symbol && this.positions.length > 0) {
+                    this.applySelection(this.positions[0]);
+                }
+                await nextTick();
+                this.renderChart();
+            },
+            applySelection(position) {
+                this.form.symbol = position.symbol;
+                this.form.portfolio_tag = position.portfolio_tag;
+                this.form.strategy_description = position.strategy_description;
+                this.form.expected_action = position.expected_action;
+            },
+            async submitStrategy() {
+                const response = await fetch(`${apiBase}/update_strategy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form),
+                });
+                if (!response.ok) {
+                    this.statusMessage = '保存失败，请检查输入。';
+                    return;
+                }
+                this.statusMessage = '策略已更新，外部 Agent 可立即通过 Skill API 获取最新状态。';
+                await this.loadPositions();
+                const updated = this.positions.find((position) => position.symbol === this.form.symbol);
+                if (updated) {
+                    this.applySelection(updated);
+                }
+            },
+            renderChart() {
+                const chartElement = document.getElementById('chart');
+                if (!chartElement || !window.echarts) {
+                    return;
+                }
+                this.chart = this.chart || window.echarts.init(chartElement);
+                this.chart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', data: this.positions.map((item) => item.name) },
+                    yAxis: { type: 'value' },
+                    series: [{
+                        type: 'bar',
+                        data: this.positions.map((item) => item.unrealized_pnl),
+                        itemStyle: {
+                            color: '#2563eb',
+                            borderRadius: [6, 6, 0, 0],
+                        },
+                    }],
+                });
+            },
+        },
+        watch: {
+            'form.symbol'(value) {
+                const selected = this.positions.find((position) => position.symbol === value);
+                if (selected) {
+                    this.applySelection(selected);
+                }
+            },
+        },
+        mounted() {
+            this.loadPositions();
+        },
+    }).mount('#app');
+</script>
+{% endblock %}
