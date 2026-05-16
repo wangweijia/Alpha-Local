@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  alpha-local:
+    build: .
+    container_name: alpha-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./alpha_local.db:/app/alpha_local.db
+    environment:
+      - TZ=Asia/Shanghai
+      - EMQUANT_PHONE_NUMBER=${EMQUANT_PHONE_NUMBER:-}
+    restart: unless-stopped

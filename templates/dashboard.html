@@ -2,100 +2,138 @@
 
 {% block body %}
 <div id="app" class="mx-auto max-w-7xl p-6">
-    <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-            <p class="text-sm font-medium text-blue-600">FastAPI + Jinja2 + Vue3 Monolith</p>
-            <h1 class="text-3xl font-bold">Alpha-Local 持仓看板</h1>
-            <p class="mt-2 text-sm text-slate-600">同域技能接口：{{ api_base }}/get_positions · {{ api_base }}/update_strategy</p>
-        </div>
-        <div class="rounded-2xl bg-white p-4 shadow-sm">
-            <div class="text-sm text-slate-500">组合总市值</div>
-            <div class="text-2xl font-semibold" v-text="currency(totals.market_value)"></div>
-            <div class="text-sm" :class="totals.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`浮盈亏 ${currency(totals.unrealized_pnl)}`"></div>
-        </div>
-    </div>
-
-    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <section class="rounded-2xl bg-white p-5 shadow-sm">
-            <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-xl font-semibold">自定义组合持仓</h2>
-                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" @click="loadPositions">刷新数据</button>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead>
-                        <tr class="text-left text-slate-500">
-                            <th class="py-3">股票</th>
-                            <th class="py-3">数量</th>
-                            <th class="py-3">分组</th>
-                            <th class="py-3">收益率</th>
-                            <th class="py-3">策略描述</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        <tr v-for="position in positions" :key="position.symbol">
-                            <td class="py-3">
-                                <div class="font-medium" v-text="position.name"></div>
-                                <div class="text-xs text-slate-500" v-text="position.symbol"></div>
-                            </td>
-                            <td class="py-3" v-text="position.quantity"></td>
-                            <td class="py-3">
-                                <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700" v-text="position.portfolio_tag"></span>
-                            </td>
-                            <td class="py-3" :class="position.return_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`${position.return_pct}%`"></td>
-                            <td class="py-3 text-slate-600" v-text="position.strategy_description || '待补充策略描述'"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <aside class="space-y-6">
-            <section class="rounded-2xl bg-white p-5 shadow-sm">
-                <h2 class="mb-4 text-xl font-semibold">更新操作预期</h2>
-                <form class="space-y-3" @submit.prevent="submitStrategy">
-                    <label class="block text-sm font-medium text-slate-600">
-                        股票代码
-                        <select v-model="form.symbol" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                            <option v-for="position in positions" :key="position.symbol" :value="position.symbol" v-text="`${position.symbol} · ${position.name}`"></option>
-                        </select>
-                    </label>
-                    <label class="block text-sm font-medium text-slate-600">
-                        虚拟组合标签
-                        <input v-model="form.portfolio_tag" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：长线 / 波段" />
-                    </label>
-                    <label class="block text-sm font-medium text-slate-600">
-                        持仓逻辑
-                        <textarea v-model="form.strategy_description" class="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="记录你的仓位逻辑"></textarea>
-                    </label>
-                    <label class="block text-sm font-medium text-slate-600">
-                        期望动作
-                        <textarea v-model="form.expected_action" class="mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：14:30 若跌破均线则减仓"></textarea>
-                    </label>
-                    <button class="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white" type="submit">保存策略</button>
-                    <p class="text-sm text-slate-500" v-text="statusMessage"></p>
+    <template v-if="!token">
+        <div class="flex min-h-[60vh] items-center justify-center">
+            <div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
+                <h1 class="mb-6 text-2xl font-bold text-center">Alpha-Local 登录</h1>
+                <form @submit.prevent="login" class="space-y-4">
+                    <input v-model="loginForm.username" placeholder="用户名 (默认: admin)" required />
+                    <input v-model="loginForm.password" type="password" placeholder="密码 (默认: admin)" required />
+                    <button class="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white" type="submit">登录</button>
+                    <p class="text-sm text-rose-600 text-center" v-if="loginError" v-text="loginError"></p>
                 </form>
-            </section>
+            </div>
+        </div>
+    </template>
 
+    <template v-else>
+        <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+                <p class="text-sm font-medium text-blue-600">FastAPI + Jinja2 + Vue3 Monolith</p>
+                <h1 class="text-3xl font-bold">Alpha-Local 持仓看板</h1>
+                <p class="mt-2 text-sm text-slate-600">
+                    同域技能接口：{{ api_base }}/get_positions · {{ api_base }}/update_strategy 
+                    <button @click="logout" class="ml-4 text-rose-600 underline">退出登录</button>
+                </p>
+            </div>
+            <div class="rounded-2xl bg-white p-4 shadow-sm">
+                <div class="text-sm text-slate-500">组合总市值</div>
+                <div class="text-2xl font-semibold" v-text="currency(totals.market_value)"></div>
+                <div class="text-sm" :class="totals.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`浮盈亏 ${currency(totals.unrealized_pnl)}`"></div>
+            </div>
+        </div>
+
+        <!-- AI Advice Section -->
+        <div class="mb-6 rounded-2xl bg-white p-5 shadow-sm border-l-4 border-blue-600" v-if="aiAdvice.content">
+            <h2 class="mb-2 text-xl font-semibold text-blue-900">14:30 尾盘 AI 建议</h2>
+            <p class="text-sm text-slate-500 mb-2" v-text="`生成时间: ${formatDate(aiAdvice.created_at)}`"></p>
+            <div class="text-slate-700 whitespace-pre-wrap" v-text="aiAdvice.content"></div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
             <section class="rounded-2xl bg-white p-5 shadow-sm">
-                <h2 class="mb-4 text-xl font-semibold">组合收益概览</h2>
-                <div class="space-y-3">
-                    <div v-for="position in positions" :key="`chart-${position.symbol}`" class="chart-card">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="font-medium" v-text="position.name"></div>
-                                <div class="text-xs text-slate-500" v-text="position.portfolio_tag"></div>
-                            </div>
-                            <div class="text-sm font-medium" :class="position.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="currency(position.unrealized_pnl)"></div>
-                        </div>
-                        <div class="chart-track">
-                            <div class="chart-bar" :class="position.unrealized_pnl >= 0 ? 'bg-emerald-600' : 'bg-rose-600'" :style="{ width: chartWidth(position) }"></div>
-                        </div>
-                    </div>
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-xl font-semibold">自定义组合持仓</h2>
+                    <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" @click="loadData">刷新数据</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-500">
+                                <th class="py-3">股票</th>
+                                <th class="py-3">数量</th>
+                                <th class="py-3">分组</th>
+                                <th class="py-3">收益率</th>
+                                <th class="py-3">策略描述</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="position in positions" :key="position.symbol">
+                                <td class="py-3 cursor-pointer" @click="applySelection(position)">
+                                    <div class="font-medium text-blue-600" v-text="position.name"></div>
+                                    <div class="text-xs text-slate-500" v-text="position.symbol"></div>
+                                </td>
+                                <td class="py-3" v-text="position.quantity"></td>
+                                <td class="py-3">
+                                    <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700" v-text="position.portfolio_tag"></span>
+                                </td>
+                                <td class="py-3" :class="position.return_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="`${position.return_pct}%`"></td>
+                                <td class="py-3 text-slate-600" v-text="position.strategy_description || '待补充策略描述'"></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
-        </aside>
-    </div>
+
+            <aside class="space-y-6">
+                <section class="rounded-2xl bg-white p-5 shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold">更新操作预期</h2>
+                    <form class="space-y-3" @submit.prevent="submitStrategy">
+                        <label class="block text-sm font-medium text-slate-600">
+                            股票代码
+                            <select v-model="form.symbol" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
+                                <option v-for="position in positions" :key="position.symbol" :value="position.symbol" v-text="`${position.symbol} · ${position.name}`"></option>
+                            </select>
+                        </label>
+                        <label class="block text-sm font-medium text-slate-600">
+                            虚拟组合标签
+                            <input v-model="form.portfolio_tag" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：长线 / 波段" />
+                        </label>
+                        <label class="block text-sm font-medium text-slate-600">
+                            持仓逻辑
+                            <textarea v-model="form.strategy_description" class="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="记录你的仓位逻辑"></textarea>
+                        </label>
+                        <label class="block text-sm font-medium text-slate-600">
+                            期望动作
+                            <textarea v-model="form.expected_action" class="mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="如：14:30 若跌破均线则减仓"></textarea>
+                        </label>
+                        <button class="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white" type="submit">保存策略</button>
+                        <p class="text-sm text-slate-500" v-text="statusMessage"></p>
+                    </form>
+                </section>
+
+                <section class="rounded-2xl bg-white p-5 shadow-sm" v-if="strategyHistory.length > 0">
+                    <h2 class="mb-4 text-xl font-semibold">策略变更记录</h2>
+                    <ul class="space-y-4">
+                        <li v-for="(h, i) in strategyHistory" :key="i" class="border-l-2 border-slate-200 pl-3">
+                            <div class="text-xs text-slate-400 mb-1" v-text="formatDate(h.created_at)"></div>
+                            <div class="text-sm font-medium text-slate-700" v-text="h.portfolio_tag"></div>
+                            <div class="text-sm text-slate-600 mt-1" v-text="h.strategy_description"></div>
+                            <div class="text-xs text-blue-600 mt-1" v-text="h.expected_action"></div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="rounded-2xl bg-white p-5 shadow-sm">
+                    <h2 class="mb-4 text-xl font-semibold">组合收益概览</h2>
+                    <div class="space-y-3">
+                        <div v-for="position in positions" :key="`chart-${position.symbol}`" class="chart-card">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <div class="font-medium" v-text="position.name"></div>
+                                    <div class="text-xs text-slate-500" v-text="position.portfolio_tag"></div>
+                                </div>
+                                <div class="text-sm font-medium" :class="position.unrealized_pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'" v-text="currency(position.unrealized_pnl)"></div>
+                            </div>
+                            <div class="chart-track">
+                                <div class="chart-bar" :class="position.unrealized_pnl >= 0 ? 'bg-emerald-600' : 'bg-rose-600'" :style="{ width: chartWidth(position) }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </template>
 </div>
 
 <script>
@@ -105,8 +143,13 @@
         Vue.createApp({
         data() {
             return {
+                token: localStorage.getItem('alpha_token') || '',
+                loginForm: { username: '', password: '' },
+                loginError: '',
                 positions: [],
                 totals: { market_value: 0, unrealized_pnl: 0 },
+                aiAdvice: { content: '', created_at: '' },
+                strategyHistory: [],
                 form: {
                     symbol: '',
                     portfolio_tag: '',
@@ -117,20 +160,91 @@
             };
         },
         methods: {
+            getHeaders() {
+                return {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                };
+            },
+            async login() {
+                this.loginError = '';
+                const formData = new URLSearchParams();
+                formData.append('username', this.loginForm.username);
+                formData.append('password', this.loginForm.password);
+
+                try {
+                    const res = await fetch('/api/auth/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: formData
+                    });
+                    if (!res.ok) {
+                        this.loginError = '用户名或密码错误';
+                        return;
+                    }
+                    const data = await res.json();
+                    this.token = data.access_token;
+                    localStorage.setItem('alpha_token', this.token);
+                    await this.loadData();
+                } catch (e) {
+                    this.loginError = '网络错误';
+                }
+            },
+            logout() {
+                this.token = '';
+                localStorage.removeItem('alpha_token');
+            },
             currency(value) {
                 return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value || 0);
+            },
+            formatDate(isoString) {
+                if (!isoString) return '';
+                const d = new Date(isoString);
+                return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             },
             chartWidth(position) {
                 const maxPnl = Math.max(...this.positions.map((item) => Math.abs(item.unrealized_pnl)), 1);
                 return `${Math.max((Math.abs(position.unrealized_pnl) / maxPnl) * 100, 8)}%`;
             },
-            async loadPositions() {
-                const response = await fetch(`${apiBase}/get_positions`);
-                const payload = await response.json();
-                this.positions = payload.positions;
-                this.totals = payload.totals;
-                if (!this.form.symbol && this.positions.length > 0) {
-                    this.applySelection(this.positions[0]);
+            async apiFetch(url, options = {}) {
+                options.headers = { ...options.headers, ...this.getHeaders() };
+                const res = await fetch(url, options);
+                if (res.status === 401) {
+                    this.logout();
+                    throw new Error("Unauthorized");
+                }
+                return res;
+            },
+            async loadData() {
+                try {
+                    const [posRes, advRes] = await Promise.all([
+                        this.apiFetch(`${apiBase}/get_positions`),
+                        this.apiFetch(`${apiBase}/get_advice`)
+                    ]);
+                    const payload = await posRes.json();
+                    this.positions = payload.positions;
+                    this.totals = payload.totals;
+                    
+                    const advData = await advRes.json();
+                    this.aiAdvice = advData;
+
+                    if (!this.form.symbol && this.positions.length > 0) {
+                        this.applySelection(this.positions[0]);
+                    } else if (this.form.symbol) {
+                        this.loadHistory(this.form.symbol);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            },
+            async loadHistory(symbol) {
+                if (!symbol) return;
+                try {
+                    const res = await this.apiFetch(`${apiBase}/get_strategy_history/${symbol}`);
+                    const data = await res.json();
+                    this.strategyHistory = data.history || [];
+                } catch (e) {
+                    console.error(e);
                 }
             },
             applySelection(position) {
@@ -138,22 +252,26 @@
                 this.form.portfolio_tag = position.portfolio_tag;
                 this.form.strategy_description = position.strategy_description;
                 this.form.expected_action = position.expected_action;
+                this.loadHistory(position.symbol);
             },
             async submitStrategy() {
-                const response = await fetch(`${apiBase}/update_strategy`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.form),
-                });
-                if (!response.ok) {
-                    this.statusMessage = '保存失败，请检查输入。';
-                    return;
-                }
-                this.statusMessage = '策略已更新，外部 Agent 可立即通过 Skill API 获取最新状态。';
-                await this.loadPositions();
-                const updated = this.positions.find((position) => position.symbol === this.form.symbol);
-                if (updated) {
-                    this.applySelection(updated);
+                try {
+                    const response = await this.apiFetch(`${apiBase}/update_strategy`, {
+                        method: 'POST',
+                        body: JSON.stringify(this.form),
+                    });
+                    if (!response.ok) {
+                        this.statusMessage = '保存失败，请检查输入。';
+                        return;
+                    }
+                    this.statusMessage = '策略已更新，外部 Agent 可立即通过 Skill API 获取最新状态。';
+                    await this.loadData();
+                    const updated = this.positions.find((position) => position.symbol === this.form.symbol);
+                    if (updated) {
+                        this.applySelection(updated);
+                    }
+                } catch (e) {
+                    this.statusMessage = '更新失败: ' + e.message;
                 }
             },
         },
@@ -166,7 +284,9 @@
             },
         },
         mounted() {
-            this.loadPositions();
+            if (this.token) {
+                this.loadData();
+            }
         },
         }).mount('#app');
     });

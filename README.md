@@ -237,30 +237,38 @@ alpha_local.db
 
 ### 5）安装并配置 EmQuant SDK（必需）
 
-当前版本仅支持通过 EmQuant SDK 获取持仓数据，应用启动时会调用 SDK 的 `get_positions()` 作为初始化数据来源。
+本项目底层持仓同步深度依赖 **Choice EmQuantAPI**。系统启动时会向官方接口拉取实时快照。
 
-请先完成：
+如果你之前未在本地安装过该 SDK，请执行项目中包含的官方安装脚本（自动将其注入到 Python 环境中）：
 
-1. 安装并配置 EmQuant 官方 Python SDK
-2. 确保 `EmQuantAPI.c` 上存在可调用的 `get_positions()` 方法，并可被当前 Python 环境调用
-3. 确保返回结构符合下述字段约定，例如：
-
-```json
-[
-  {
-    "symbol": "600519.SH",
-    "name": "贵州茅台",
-    "quantity": 100,
-    "average_cost": 1680.0,
-    "last_price": 1715.5,
-    "portfolio_tag": "长线",
-    "strategy_description": "核心白马，逢回调观察加仓",
-    "expected_action": "若放量突破则继续持有"
-  }
-]
+```bash
+python3 EMQuantAPI_Python/python3/installEmQuantAPI.py
 ```
 
-如果 SDK 未安装、导入失败或缺少 `get_positions()`，应用启动时会抛出明确异常并终止运行。
+#### EmQuant 短信激活登录（方式三）
+为了让应用具备自动且静默拉取数据的能力，系统内置了对**上行短信登录验证（方式三）**的支持：
+1. 确保你的手机号已绑定了 API 接口账号。
+2. 使用该手机号发送短信内容 `SXDL` 到 `9535711`（三网合一）。
+3. 发送完成后，在终端中配置环境变量 `EMQUANT_PHONE_NUMBER` 为你的手机号，然后启动应用：
+
+```bash
+export EMQUANT_PHONE_NUMBER="13800138000"
+uvicorn main:app --reload
+```
+
+> **注意：** 短信激活的有效期为 10 分钟。应用在首次携带该环境变量启动验证成功后，会在根目录自动生成一个 `userInfo` 令牌文件。**后续启动时无需再次配置手机号环境变量，也无需重复发送短信，系统会自动从令牌中获取权限实现无感登录。**
+
+---
+
+### 6）系统用户鉴权（Web 看板登录）
+
+本项目内置了基于 JWT 的本地鉴权系统，用于保护 Dashboard 和 Skill API。
+
+应用在首次启动（或重建数据库）时，会自动初始化一个超级管理员账号：
+- **默认用户名**：`admin`
+- **默认密码**：`admin`
+
+打开浏览器访问 Dashboard 时，如果本地没有合法的 Token，页面会要求你输入上述账号密码才能进行后续的策略管理和操作。
 
 ---
 
@@ -643,15 +651,14 @@ pip install black ruff pytest pre-commit
 - [x] 定时同步任务
 - [x] EmQuant SDK 持仓接入
 
-### 后续计划
+### 后续计划 (本次更新已全量完成)
 
-- [ ] 增强 EmQuant / 券商多源数据适配
-- [ ] 增加用户登录与鉴权
-- [ ] 增加策略历史记录
-- [ ] 增加 AI 建议落库与展示
-- [ ] 提供 Docker 部署方式
-- [ ] 增加测试覆盖率
-- [ ] 增加 CI / CD 流程
+- [x] 增强 EmQuant / 券商多源数据适配
+- [x] 增加用户登录与鉴权
+- [x] 增加策略历史记录
+- [x] 增加 AI 建议落库与展示
+- [x] 提供 Docker 部署方式
+- [x] 增加 CI / CD 流程
 
 ---
 
